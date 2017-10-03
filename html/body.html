@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<head>
+    <style>
+      @media print {
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        div.page {
+            page-break-after: always;
+            font-family: sans-serif;
+            width: 100%;
+            position:relative;
+            top:0px;
+            bottom:0px;
+            padding: 0%;
+            margin: 0px !important;
+            overflow: hidden;
+        }
+        div.page:last-child {
+            page-break-after: avoid;
+        }
+        div.firstlast {
+            position: relative;
+            padding-bottom: 1em;
+        }
+        div.floatleft { float: left; margin-left: .5em; }
+        div.floatright { float: right; margin-right: .5em; }
+        div.alignleft { text-align: left; }
+        div.alignright { text-align: right; }
+        table.week {
+            width: 60em;
+            border-spacing: 0em;
+            border-collapse: collapse;
+            width: 99%;
+            margin: .5%;
+        }
+        table.week td {
+            border: 1px #000 solid;
+            font-size: 16pt;
+            height: 9em;
+            white-space: nowrap;
+            text-align: left;
+        }
+        tr.odd td { vertical-align: bottom; }
+        tr.odd > td > div { -webkit-transform: rotate(-90deg); }
+        tr.odd td.rest { text-align: right; }
+        tr.even td { vertical-align: top; }
+        tr.even > td > div { -webkit-transform: rotate(90deg); }
+        tr.even td.rest { text-align: left; }
+        td.rest { width: 100%; padding: .5em; vertical-align: bottom !important; }
+        td.weekday div, td.day div {
+            width: 3.4em;
+            margin-bottom: 0.7em;
+            margin-top: 0.7em;
+        }
+        td.rest > div {
+            width: 3.5em;
+            text-align: center;
+            margin-bottom: 1.3em;
+            margin-top: 1.3em;
+        }
+        div.returnpage {
+            height: 100%;
+        }
+        div.returnpage p {
+            font-size: 18pt;
+            margin: 0;
+        }
+        div.returnpage p.german {
+            color: #555;
+        }
+        div.returnpage p.address {
+            font-weight: bold;
+            font-size: 22pt;
+            margin: 2em;
+            line-height: 150%;
+        }
+        div.returnpage p.rlyeh {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            font-family: "Liberation Serif";
+            font-variant: small-caps;
+            letter-spacing: -.05em;
+        }
+    </style>
+</head>
+<body>
+${pages}
+</body>

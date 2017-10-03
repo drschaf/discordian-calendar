@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+import argparse
+import calendar
+import datetime
+from math import ceil
+from pathlib import Path
+from PyQt5.QtWebKitWidgets import QWebView
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtPrintSupport import QPrinter
+
+class Calendar(object):
+    def __init__(self, year=None):
+        if year == None:
+            year = datetime.date.today().year
+        days = list()
+        leap = self.leap = calendar.isleap(year)
+        ndays = 365+leap
+        now = datetime.date(year=year, day=1, month=1)
+        year_disc = year+1166
+        for d in range(ndays):
+            tpl = now.timetuple()
+            day_greg = (tpl.tm_year, tpl.tm_mon, tpl.tm_mday, tpl.tm_wday)
+            if leap and d >= 59:    # day 59 (from zero) is feb 29
+                if d == 59:
+                    day_disc = (year_disc, 1, 0, 0)
+                elif d > 59:
+                    day_disc = (year_disc, ((d-1)//73)+1, (d-1)%73+1, (d-1)%5+1)
+            else:
+                day_disc = (year_disc, (d//73)+1, d%73+1, d%5+1)
+            days.append((day_greg, day_disc))
+            now += datetime.timedelta(days=1)
+        self.days = days
+        
+    def __getitem__(self, key):
+        return self.days[key]
+
+class Template(object):
+    def __init__(self, folder):
+        folder = Path(folder)
+        self.templates = dict()
+        for item in folder.iterdir():
+            file_name = str(item)
+            attribute_name = item.name.split(".")[0]
+            with open(file_name) as f:
+                self.templates[attribute_name] = f.read()
+                
+    def get_template(self, template, **variables):
+        if not template in self.templates:
+            raise IndexError("Template `%s' not loaded."%template)
+        content = self.templates[template]
+        for key, value in variables.items():
+            tpl_variable = "${%s}"%(key)
+            content = content.replace(tpl_variable, value)
+        return content
+        
+    def __getattr__(self, name):
+        return lambda **kw: self.get_template(name, **kw)
+
+def main(output, folder="html", html="", year=None, no_reorder=False,
+            verbose=False):
+    def print_verbose(*a,**kw):
+        if verbose:
+            print(*a,**kw)
+    months_greg = [
+        "January", "February", "March", "April",
+        "May", "June", "July", "August",
+        "September", "October", "November", "December",
+    ]
+    months_greg_s = [n[:3] for n in months_greg]
+    weekdays_greg = [
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+        "Saturday", "Sunday"
+    ]
+    months_disc = [
+        "Chaos", "Discord", "Confusion", "Bureaucracy", "The Aftermath"
+    ]
+    months_disc_s = ["Chs", "Dsc", "Cfn", "Bcy", "Afm"]
+    weekdays_disc = ["", "Sweetmorn", "Boomtime",
+        "Pungenday", "Prickle-Prickle", "Setting Orange"]
+
+    comments = {
+        (1, 5): "Mungday",
+        (1, 50): "Chaoflux",
+        (2, 5): "Mojoday",
+        (2, 50): "Discoflux",
+        (3, 5): "Syaday",
+        (3, 50): "Confuflux",
+        (4, 5): "Zaraday",
+        (4, 50): "Bureflux",
+        (5, 5): "Maladay",
+        (5, 50): "Afflux"
+    }
+    template_folder = folder
+    output_html = html
+    year = year
+    output_pdf = output
+    print_verbose("Preparing...")
+    tpl = Template(template_folder)
+    coverpage = "[coverpage]"
+    helppage = tpl.helppage()
+    quotepage = tpl.quotepage()
+    print_verbose("Calculating...")
+    cal = Calendar(int(year))
+    weeks = list()
+    leap = cal.leap
+    numweek = 0
+    thisweek = list()
+    for i, day in enumerate(cal):
+        thisweek.append(day)
+        append = False
+        if not leap:
+            append = i % 5 == 4
+        else:
+            if i<57:
+                append = i%5 == 4
+            else:
+                append = i%5 == 0
+        if append:
+            weeks.append(thisweek)
+            thisweek = list()
+    html_pages = list()
+    html_pages.append(tpl.page(classes=" coverpage", content=coverpage))
+    html_pages.append(tpl.page(classes=" returnpage", content=helppage))
+    html_pages.append(tpl.page(classes=" quotepage", content=quotepage))
+    print_verbose("Building...")
+    for nw, week in enumerate(weeks):
+        tpl_weekday = [tpl.weekday_odd, tpl.weekday_even][nw%2]
+        html_weekrows = str()
+        for daytuple in week:
+            daytuple_greg, daytuple_disc = daytuple
+            monthday = (daytuple_disc[1], daytuple_disc[2])
+            daycomment = ""
+            if monthday in comments:
+                daycomment = comments[monthday]
+            if daytuple_disc[2] == 0:
+                text_month_disc = ""
+                text_day_disc = ""
+            else:
+                text_month_disc = months_disc[daytuple_disc[1]-1]
+                text_day_disc = str(daytuple_disc[2])
+            html_weekrows += tpl_weekday(
+                    day_disc=text_day_disc,
+                    month_disc=text_month_disc,
+                    day_greg=str(daytuple_greg[2]),
+                    month_greg=months_greg[daytuple_greg[1]-1],
+                    weekday_disc=weekdays_disc[daytuple_disc[3]],
+                    weekday_greg=weekdays_greg[daytuple_greg[3]],
+                    comments=daycomment
+                )
+        html_pages.append(tpl.week(
+                week=html_weekrows,
+                day_from_disc=str(week[0][1][2]),
+                day_to_disc=str(week[-1][1][2]),
+                day_from_greg=str(week[0][0][2]),
+                day_to_greg=str(week[-1][0][2]),
+                month_from_disc=months_disc_s[week[0][1][1]-1],
+                month_to_disc=months_disc_s[week[-1][1][1]-1],
+                month_from_greg=months_greg_s[week[0][0][1]-1],
+                month_to_greg=months_greg_s[week[-1][0][1]-1]
+            ))
+    if not no_reorder:
+        print_verbose("Reordering...")
+        empty = tpl.page(content="&nbsp;", classes="")
+        pages_new = list()
+        layer_size = 4
+        n_pages = len(html_pages)
+        n_layers = ceil(round(n_pages / (4*layer_size), 2))
+        for tl in range(n_layers):
+            for i in range(layer_size):
+                ps = list()
+                ps.append(4*layer_size-1-2*i + 4*tl*layer_size)
+                ps.append(2*i + 4*tl*layer_size)
+                ps.append(2*i+1 + 4*tl*layer_size)
+                ps.append(4*layer_size-2-2*i + 4*tl*layer_size)
+                for p in ps:
+                    if p < n_pages:
+                        pages_new.append(html_pages[p])
+                    else:
+                        pages_new.append(empty)
+        html_pages = pages_new
+        pages = list()
+        pages_new = list()
+        n_papers = 8
+        for tp in range(len(html_pages)//n_papers):
+            pages.append(8*tp)      # 1
+            pages.append(8*tp+1)    # 2
+            pages.append(8*tp+4)    # 3 --> 5
+            pages.append(8*tp+5)    # 4 --> 6
+            pages.append(8*tp+2)    # 5 --> 3
+            pages.append(8*tp+3)    # 6 --> 4
+            pages.append(8*tp+6)    # 7
+            pages.append(8*tp+7)    # 8
+        for p in pages:
+            pages_new.append(html_pages[p])
+        html_pages = pages_new
+    html_calendar = tpl.body(pages="".join(html_pages))
+    if output_html:
+        print_verbose("Writing HTML to %s..."%output_html)
+        target=output_html
+        if target == "-":
+            print(html_calendar)
+        else:
+            with open(output_html, "w") as html_file:
+                html_file.write(html_calendar)
+    if output_pdf:
+        print_verbose("Writing PDF to %s..."%output_pdf)
+        app = QApplication(list())  # no need for sys.argv since we use
+        web = QWebView()            # argparse and won't pass any Qt
+        web.setHtml(html_calendar)  # argument
+        printer = QPrinter()
+        printer.setPageSize(QPrinter.A6)
+        printer.setOutputFormat(QPrinter.PdfFormat)
+        printer.setOutputFileName(output_pdf)
+        web.print_(printer)
+        app.exit()
+    print_verbose("Done.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-y", "--year",
+        help="set year")
+    parser.add_argument("-f", "--folder",
+        help="set template folder")
+    parser.add_argument("output",
+        help="filename for pdf output")
+    parser.add_argument("-H", "--html",
+        help="set HTML output filename")
+    parser.add_argument("-n", "--no-reorder",
+        help="don't reorder for 4-layers A6 on A4",
+        action="store_true")
+    parser.add_argument("-v", "--verbose",
+        help="verbose output",
+        action="store_true")
+    kwargs = {k: v
+        for k,v in dict(parser.parse_args()._get_kwargs()).items()
+        if v}
+    main(**kwargs)
