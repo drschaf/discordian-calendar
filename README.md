@@ -1,6 +1,7 @@
 # discordian calendar
-Script to create an A-6 discordian calendar. Output will be ordered for
-printing on A-4 (top-left, top-right, bottom-left, bottom-right configuration).
+Script to create an A-6 discordian calendar. Output will be re-ordered for
+printing on double-sided A-4 (long edge flip; top-left, top-right, bottom-left,
+bottom-right configuration).
 
 Needs python3 and python3-pyqt5.
 
